@@ -1,11 +1,32 @@
-import { useSelector } from 'react-redux';
+import { useState, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../store/store';
-import { useResumesQuery } from '../store/authApi';
+import { useResumesQuery, useUpdateSettingsMutation } from '../store/authApi';
+import { setUser } from '../store/authSlice';
 import Sidebar from '../components/Sidebar';
 
 export default function DashboardPage() {
     const user = useSelector((state: RootState) => state.auth.user);
+    const dispatch = useDispatch();
     const { data: resumes } = useResumesQuery();
+    const [updateSettings, { isLoading: isUpdating }] = useUpdateSettingsMutation();
+    const [apiKey, setApiKey] = useState('');
+
+    useEffect(() => {
+        if (user?.gemini_api_key) {
+            setApiKey(user.gemini_api_key);
+        }
+    }, [user]);
+
+    const handleSaveKey = async () => {
+        try {
+            const response = await updateSettings({ gemini_api_key: apiKey }).unwrap();
+            dispatch(setUser(response.user));
+            alert('API Key saved successfully!');
+        } catch (err: any) {
+            alert('Error saving API Key: ' + (err?.data?.error || err?.message || 'Unknown error'));
+        }
+    };
 
     return (
         <div className="app-layout">
@@ -79,6 +100,33 @@ export default function DashboardPage() {
                             </div>
                         </div>
                     </div>
+
+                    <div className="card" style={{ marginTop: '1.5rem' }}>
+                        <p className="card-title">API Settings (BYOK)</p>
+                        <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                            To use BidderOS AI features (Resume matching and Cover Letters), please provide your Google AI Studio Gemini API Key. Your key is stored securely and only used for your personal requests. You can get one for free at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 'bold' }}>aistudio.google.com</a>.
+                        </p>
+                        <div className="form-group" style={{ marginBottom: '1rem' }}>
+                            <label htmlFor="gemini-key">Gemini API Key</label>
+                            <input
+                                id="gemini-key"
+                                type="password"
+                                placeholder="AIzaSy..."
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #374151', background: '#111827', color: 'white' }}
+                            />
+                        </div>
+                        <button
+                            className="auth-button"
+                            style={{ width: '150px', padding: '0.5rem 1rem', marginTop: '0.5rem' }}
+                            onClick={handleSaveKey}
+                            disabled={isUpdating}
+                        >
+                            {isUpdating ? 'Saving...' : 'Save API Key'}
+                        </button>
+                    </div>
+
                 </div>
             </main>
         </div>

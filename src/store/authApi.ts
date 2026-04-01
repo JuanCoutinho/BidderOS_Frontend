@@ -5,6 +5,7 @@ export interface User {
     name: string;
     email: string;
     created_at: string;
+    gemini_api_key?: string;
 }
 
 export interface AuthResponse {
@@ -29,6 +30,9 @@ export const authApi = createApi({
         register: builder.mutation<AuthResponse, { name: string; email: string; password: string; password_confirmation: string }>({
             query: (body) => ({ url: '/auth/register', method: 'POST', body }),
         }),
+        updateSettings: builder.mutation<{ user: User }, { gemini_api_key: string }>({
+            query: (body) => ({ url: '/auth/me', method: 'PUT', body }),
+        }),
         me: builder.query<{ user: User }, void>({
             query: () => '/auth/me',
         }),
@@ -47,6 +51,9 @@ export const authApi = createApi({
         generateCoverLetter: builder.mutation<{ cover_letter: string }, { resume_id: number; job_description: string }>({
             query: (body) => ({ url: '/recommendations/cover_letter', method: 'POST', body }),
         }),
+        generateGapAnalysis: builder.mutation<{ gap_analysis: string }, { resume_id: number; job_description: string }>({
+            query: (body) => ({ url: '/recommendations/gap_analysis', method: 'POST', body }),
+        }),
     }),
 });
 
@@ -57,5 +64,7 @@ export const {
     useResumesQuery,
     useUploadResumeMutation,
     useRecommendationsMutation,
-    useGenerateCoverLetterMutation
+    useGenerateCoverLetterMutation,
+    useUpdateSettingsMutation,
+    useGenerateGapAnalysisMutation
 } = authApi;

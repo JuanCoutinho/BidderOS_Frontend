@@ -1,7 +1,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState, AppDispatch } from '../store/store';
 import { logout as logoutAction, setCredentials } from '../store/authSlice';
-import { useLoginMutation, useRegisterMutation } from '../store/authApi';
+import { useLoginMutation, useRegisterMutation, authApi } from '../store/authApi';
 
 export function useAuth() {
     const dispatch = useDispatch<AppDispatch>();
@@ -23,7 +23,11 @@ export function useAuth() {
         dispatch(setCredentials(data));
     };
 
-    const logout = () => dispatch(logoutAction());
+    const logout = () => {
+        sessionStorage.removeItem('skip_onboarding');
+        dispatch(logoutAction());
+        dispatch(authApi.util.resetApiState());
+    };
 
     return { user, token, loading, login, register, logout };
 }

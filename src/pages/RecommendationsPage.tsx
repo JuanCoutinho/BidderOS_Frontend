@@ -1,20 +1,25 @@
 import { useState } from 'react';
-import { useRecommendationsMutation, useGenerateCoverLetterMutation } from '../store/authApi';
+import { useRecommendationsMutation, useGenerateCoverLetterMutation, useGenerateGapAnalysisMutation } from '../store/authApi';
 import Sidebar from '../components/Sidebar';
 
 export default function RecommendationsPage() {
     const [jobDescription, setJobDescription] = useState('');
     const [getRecommendations, { data, isLoading, error }] = useRecommendationsMutation();
     const [generateCoverLetter, { isLoading: isGenerating }] = useGenerateCoverLetterMutation();
+    const [generateGapAnalysis, { isLoading: isAnalyzing }] = useGenerateGapAnalysisMutation();
 
     // UI States
     const [activeLetterId, setActiveLetterId] = useState<number | null>(null);
     const [letters, setLetters] = useState<Record<number, string>>({});
+    const [activeAnalysisId, setActiveAnalysisId] = useState<number | null>(null);
+    const [analyses, setAnalyses] = useState<Record<number, string>>({});
 
     const handleSubmit = async () => {
         if (!jobDescription.trim()) return;
         setLetters({}); // reset old letters
+        setAnalyses({});
         setActiveLetterId(null);
+        setActiveAnalysisId(null);
         await getRecommendations({ job_description: jobDescription });
     };
 
@@ -28,6 +33,7 @@ export default function RecommendationsPage() {
         try {
             const result = await generateCoverLetter({ resume_id: resumeId, job_description: jobDescription }).unwrap();
             setLetters(prev => ({ ...prev, [resumeId]: result.cover_letter }));
+            setActiveAnalysisId(null);
             setActiveLetterId(resumeId);
         } catch (err: any) {
             const msg = err.data?.error || "Failed to generate cover letter.";
@@ -38,6 +44,24 @@ export default function RecommendationsPage() {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         alert("Copied to clipboard!");
+    };
+
+    const handleAnalyzeGap = async (resumeId: number) => {
+        if (analyses[resumeId]) {
+            setActiveAnalysisId(activeAnalysisId === resumeId ? null : resumeId);
+            return;
+        }
+
+        try {
+            const result = await generateGapAnalysis({ resume_id: resumeId, job_description: jobDescription }).unwrap();
+            setAnalyses(prev => ({ ...prev, [resumeId]: result.gap_analysis }));
+            // Hide cover letter if open
+            setActiveLetterId(null);
+            setActiveAnalysisId(resumeId);
+        } catch (err: any) {
+            const msg = err.data?.error || "Failed to generate gap analysis.";
+            alert(`Error: ${msg}`);
+        }
     };
 
     const scoreColor = (score: number) => {
@@ -86,7 +110,7 @@ export default function RecommendationsPage() {
                     </div>
 
                     {error && (
-                        <p className="msg-error">Failed to get recommendations. Make sure you have resumes uploaded.</p>
+                        <p className="msg-error">{(error as any)?.data?.error || 'Failed to get recommendations. Make sure you have resumes uploaded.'}</p>
                     )}
 
                     {data && (
@@ -138,6 +162,22 @@ export default function RecommendationsPage() {
                                                         )}
                                                     </button>
 
+                                                    <button
+                                                        onClick={() => handleAnalyzeGap(rec.id)}
+                                                        disabled={isAnalyzing}
+                                                        className="btn-outline-glow"
+                                                        style={{ marginLeft: '10px' }}
+                                                    >
+                                                        {isAnalyzing && activeAnalysisId === rec.id ? (
+                                                            <><span className="btn-spinner" style={{ width: '14px', height: '14px' }} /> Analyzing...</>
+                                                        ) : (
+                                                            <>
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                                                {analyses[rec.id] ? (activeAnalysisId === rec.id ? 'Hide Analysis' : 'View Analysis') : 'Analyze Gaps'}
+                                                            </>
+                                                        )}
+                                                    </button>
+
                                                     <div className="rec-score">
                                                         <span className="score-value" style={{ color: scoreColor(rec.score) }}>
                                                             {rec.score}%
@@ -165,6 +205,43 @@ export default function RecommendationsPage() {
                                                             // eslint-disable-next-line react/no-array-index-key
                                                             <p key={idx}>{paragraph}</p>
                                                         ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Gap Analysis View */}
+                                            {analyses[rec.id] && activeAnalysisId === rec.id && (
+                                                <div className="cover-letter-view" style={{ background: 'rgba(245, 158, 11, 0.03)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+                                                    <div className="cover-letter-header" style={{ borderBottom: '1px solid rgba(245, 158, 11, 0.1)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                                            AI GAP ANALYSIS
+                                                        </span>
+                                                    </div>
+                                                    <div className="cover-letter-content" style={{ color: '#d1d5db', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                                                        {analyses[rec.id].split('\n').filter(l => l.trim().length > 0).map((line, idx) => {
+                                                            const isBullet = line.trim().startsWith('*') || line.trim().startsWith('-');
+                                                            const cleanLine = isBullet ? line.replace(/^[\*\-]\s*/, '') : line;
+                                                            const renderMarkdown = (text: string) => {
+                                                                return text.split(/\*\*(.*?)\*\*/g).map((part, i) =>
+                                                                    i % 2 === 1 ? <strong key={i} style={{ color: '#fbbf24', fontWeight: 600 }}>{part}</strong> : <span key={i}>{part}</span>
+                                                                );
+                                                            };
+                                                            return (
+                                                                <div key={idx} style={{
+                                                                    marginBottom: '0.75rem',
+                                                                    paddingLeft: isBullet ? '1.5rem' : '0',
+                                                                    position: 'relative'
+                                                                }}>
+                                                                    {isBullet && (
+                                                                        <span style={{ position: 'absolute', left: '0.25rem', color: '#f59e0b', top: '0.1rem' }}>•</span>
+                                                                    )}
+                                                                    <p style={{ margin: 0, padding: 0 }}>
+                                                                        {renderMarkdown(cleanLine)}
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             )}

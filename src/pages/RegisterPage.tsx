@@ -27,8 +27,9 @@ export default function RegisterPage() {
         try {
             await register(name, email, password, passwordConfirmation);
             navigate('/');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Registration failed');
+        } catch (err: any) {
+            const backendError = err?.data?.errors?.[0] || err?.data?.error || err?.message || 'Registration failed';
+            setError(backendError);
         } finally {
             setIsLoading(false);
         }

@@ -19,8 +19,9 @@ export default function LoginPage() {
         try {
             await login(email, password);
             navigate('/');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Login failed');
+        } catch (err: any) {
+            const backendError = err?.data?.errors?.[0] || err?.data?.error || err?.message || 'Login failed';
+            setError(backendError);
         } finally {
             setIsLoading(false);
         }
